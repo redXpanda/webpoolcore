@@ -65,7 +65,13 @@ SSR -> 白平衡 -> Bloom -> SMAA -> ACES Output
 npm run generate:assets
 ```
 
-生成器位于 `scripts/generate-assets.mjs`，输出到 `public/generated/`：
+生成器位于 `scripts/generate-assets.mjs`，当前场景资产输出到：
+
+```text
+public/generated/sunset-pool-hall/
+```
+
+不同场景必须使用独立子目录，禁止直接写入 `public/generated/` 根目录。旧版场景资产保存在 `public/generated/legacy-pool-complex/`，重新生成当前场景时不会被覆盖。
 
 | 资产 | 用途 |
 | --- | --- |
@@ -73,11 +79,44 @@ npm run generate:assets
 | `tile-normal.png` | 瓷砖和砖缝法线 |
 | `wet-mask.png` | 随机地面水渍遮罩 |
 | `wet-roughness.png` | 湿润区域粗糙度 |
-| `gi-lightmap.png` | 窗口日光与室内反弹光 GI |
+| `gi-lightmap.png` | RGBM HDR Lightmap Atlas；每个静态 Box 的六个面以及两侧拱墙均有独立 Chart |
+| `gi-direction.png` | Directional Lightmap，记录各 texel 的主导入射光方向 |
+| `gi-ao.png` | 4 米作用范围的独立 Baked AO Atlas |
 | `light-shaft.png` | 高窗光束衰减纹理 |
+| `caustic-shadow.png` | 建筑与拱窗投射到水底的焦散光照遮罩 |
 | `probe-p*.png` / `probe-n*.png` | 室内反射探针六个方向 |
 
 `npm run dev` 和 `npm run build` 会通过 `predev`、`prebuild` 自动执行资产生成，无需手动提前运行。
+
+GI 烘焙参考 Unity Progressive Lightmapper：共享场景描述提供静态 AABB、材质反照率和窗口门户，并在烘焙前构建 BVH；每个 texel 从自身对应的世界位置与法线出发，使用余弦加权半球采样、窗口 Next Event Estimation、遮挡检测和三次漫反射 bounce。每个 texel 使用 48 个渐进累积样本，同时记录辐照度、主导入射方向和近场 AO。结果在各 Chart 内独立降噪和边缘扩张，再分别写入 RGBM HDR Lightmap、Directional Lightmap 和 Baked AO Atlas。运行时通过自定义 Three.js lightmap 解码路径恢复线性辐照度，并让法线贴图响应烘焙光方向。
+
+静态间接光只来自烘焙 Lightmap；运行时不再叠加 AmbientLight、HemisphereLight 或窗口 RectAreaLight。DirectionalLight 仅负责与烘焙方向一致的太阳直射和动态阴影。`sunsetPoolHallBakeData.js` 是运行时 UV 分配与离线烘焙共用的静态布局来源，场景创建时会校验名称、尺寸和位置，防止 Atlas 与几何静默错位。
+
+## 场景替换
+
+运行时逻辑与场景实现已经分离：
+
+- `src/main.js` 负责输入、音频、碰撞调用、折射预渲染和后处理。
+- `src/scenes/sunsetPoolHall.js` 负责资产清单、出生点、材质、几何、灯光和场景描述。
+- `scripts/generate-assets.mjs` 负责当前场景的离线纹理、GI 和反射探针烘焙。
+
+新增场景时创建新的场景定义模块，并为它指定唯一的 `id` 与 `assets.basePath`。场景工厂需要返回以下运行时接口：
+
+```js
+{
+  scene,
+  collisionBoxes,
+  waterMeshes,
+  causticMeshes,
+  ssrSurfaces,
+  ssrMask,
+  depth,
+  describeLocation(position),
+  update?.(deltaTime, elapsed),
+}
+```
+
+最后在 `src/main.js` 中替换 `activeSceneDefinition` 即可切换场景，输入和渲染循环无需修改。
 
 ## 构建与验证
 
@@ -111,12 +150,14 @@ C:/Program Files/Google/Chrome/Application/chrome.exe
 .
 |-- index.html                   页面入口
 |-- src/
-|   |-- main.js                 场景、交互、材质与渲染管线
+|   |-- main.js                 通用交互与渲染管线
+|   |-- scenes/
+|   |   `-- sunsetPoolHall.js   夕照水厅场景定义
 |   `-- style.css               页面与 HUD 样式
 |-- scripts/
 |   |-- generate-assets.mjs     程序化资产离线生成器
 |   `-- verify.mjs              Playwright 浏览器验证
-|-- public/generated/           运行时加载的生成资产
+|-- public/generated/           按场景 ID 隔离的生成资产
 |-- package.json
 `-- README.md
 ```
