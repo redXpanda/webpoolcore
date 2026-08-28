@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
@@ -31,6 +32,7 @@ controls.pointerSpeed = .72;
 async function loadSceneAssets(assetManifest) {
   const textureLoader = new THREE.TextureLoader();
   const cubeTextureLoader = new THREE.CubeTextureLoader();
+  const gltfLoader = new GLTFLoader();
   const assetUrl = name => `${import.meta.env.BASE_URL}${assetManifest.basePath}/${name}`;
   const assets = {};
   await Promise.all([
@@ -39,6 +41,14 @@ async function loadSceneAssets(assetManifest) {
     }),
     ...Object.entries(assetManifest.cubeTextures).map(async ([key, files]) => {
       assets[key] = await cubeTextureLoader.loadAsync(files.map(assetUrl));
+    }),
+    ...Object.entries(assetManifest.models ?? {}).map(async ([key, file]) => {
+      assets[key] = await gltfLoader.loadAsync(assetUrl(file));
+    }),
+    ...Object.entries(assetManifest.data ?? {}).map(async ([key, file]) => {
+      const response = await fetch(assetUrl(file));
+      if (!response.ok) throw new Error(`Failed to load ${file}: ${response.status}`);
+      assets[key] = await response.json();
     }),
   ]);
   return assets;

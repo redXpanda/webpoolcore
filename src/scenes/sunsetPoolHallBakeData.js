@@ -1,7 +1,4 @@
 export const BAKE_ROOM = { minX: -32, maxX: 32, minY: 0, maxY: 9.5, minZ: -50, maxZ: 34 };
-export const LIGHTMAP_TILE_SIZE = 24;
-export const LIGHTMAP_TILE_COLUMNS = 32;
-export const LIGHTMAP_ATLAS_WIDTH = LIGHTMAP_TILE_SIZE * LIGHTMAP_TILE_COLUMNS;
 
 export function createStaticBakeBoxes() {
   const boxes = [];
@@ -43,4 +40,44 @@ export function createStaticBakeBoxes() {
 }
 
 export const STATIC_BAKE_BOXES = createStaticBakeBoxes();
-export const LIGHTMAP_ATLAS_HEIGHT = LIGHTMAP_TILE_SIZE * Math.ceil((STATIC_BAKE_BOXES.length * 6 + 2) / LIGHTMAP_TILE_COLUMNS);
+
+export function createSunsetPoolHallBakeConfig(lightmap) {
+  const radiance = [5.2, 4.1, 3.0];
+  const lights = [];
+  for (const [x, centers, width, normal] of [
+    [BAKE_ROOM.minX, [-40, -24, -8, 8, 24], 7.2, [1, 0, 0]],
+    [BAKE_ROOM.maxX, [-42, -32, -22, -12, -2, 8, 18, 28], 3.4, [-1, 0, 0]],
+  ]) {
+    const spring = 8.4 - width / 2;
+    const height = spring - .58;
+    for (const z of centers) lights.push({
+      type: 'rectangle',
+      center: [x, .58 + height / 2, z],
+      axisU: [0, 0, width],
+      axisV: [0, height, 0],
+      normal: [...normal],
+      area: width * height,
+      radiance: [...radiance],
+    });
+  }
+  return {
+    lights,
+    materials: {
+      tile: { albedo: [.62, .57, .49], doubleSided: false },
+      wall: { albedo: [.34, .25, .18], doubleSided: false },
+      ceiling: { albedo: [.18, .15, .12], doubleSided: false },
+      submerged: { albedo: [.28, .39, .36], doubleSided: false },
+      wetFloor: { albedo: [.42, .36, .28], doubleSided: false },
+    },
+    atlas: { width: lightmap.width, height: lightmap.height, padding: 4 },
+    settings: {
+      progressivePasses: 2,
+      samplesPerPass: 8,
+      bounces: 3,
+      aoDistance: 4,
+      denoiseIterations: 3,
+      rayEpsilon: .003,
+      seed: 0x1234abcd,
+    },
+  };
+}
