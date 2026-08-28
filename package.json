@@ -1,0 +1,22 @@
+{
+  "name": "poolcore-explorer",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "generate:assets": "node scripts/generate-assets.mjs",
+    "predev": "npm run generate:assets",
+    "dev": "vite --host 0.0.0.0",
+    "prebuild": "npm run generate:assets",
+    "build": "vite build",
+    "preview": "vite preview --host 0.0.0.0",
+    "verify": "node scripts/verify.mjs"
+  },
+  "dependencies": {
+    "three": "^0.179.1"
+  },
+  "devDependencies": {
+    "playwright-core": "^1.62.1",
+    "vite": "^7.1.3"
+  }
+}
